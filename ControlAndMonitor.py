@@ -8,7 +8,7 @@ class Com(jmtui.Box):
     def __init__(self, num = 0):
         self.num = num
         super().__init__(f"Com {num}")
-        self.condition = "Fine"
+        self.condition = "Await"
         self.todo = 21
         self.done = 0
         
@@ -42,19 +42,19 @@ class StateBox(jmtui.Box):
         self.fineCom = 0
         self.errorCom = 0
         self.awaitCom = 0
-        self.complitCom = 0
-        self.totalCom = lambda: self.fineCom + self.errorCom + self.awaitCom + self.complitCom
+        self.doneCom = 0
+        self.totalCom = lambda: self.fineCom + self.errorCom + self.awaitCom + self.doneCom
         self.setTitleLoc("center")
         
     def drawComState(self, startX = 0):
         self.window.move(0, startX + 0)
-        self.window.addstr(f"Awate: {self.awaitCom}")
+        self.window.addstr(f"Await: {self.awaitCom}")
         self.window.move(0, startX + 13)
         self.window.addstr(f"Fine: {self.fineCom}", curses.color_pair(2))
         self.window.move(1, startX + 0)
         self.window.addstr(f"Error: {self.errorCom}", curses.color_pair(1))
         self.window.move(1, startX + 13)
-        self.window.addstr(f"Done: {self.complitCom}", curses.color_pair(3))
+        self.window.addstr(f"Done: {self.doneCom}", curses.color_pair(3))
         self.window.move(2, startX + 6)
         self.window.addstr(f"Total: {self.totalCom()}", curses.A_BOLD | curses.A_REVERSE)
         
@@ -66,6 +66,12 @@ class StateBox(jmtui.Box):
         super().draw()
         self.drawComState()
         self.drawTime()
+        
+    def updateCom(self, await_ = 0, fine = 0, done = 0, error = 0):
+        self.awaitCom += await_
+        self.fineCom += fine
+        self.doneCom += done
+        self.errorCom += error
         
 
 
@@ -81,7 +87,13 @@ class ConsolManager:
         self._getCenter = lambda whole, thing: (whole - thing)//2
         self.grid = self._getGrid()
         self.state = StateBox(5, self.maxx, 0, 0)
-
+        self.emptyCom = curses.newwin(self.comsize[0], self.comsize[1], 0, 0)
+        
+    def _clearComLoc(self, y, x):
+        for i in range(y, y + self.comsize[0]):
+            self.window.move(i, x)
+            self.window.addstr(" "*self.comsize[1])
+        self.window.refresh()
         
     def _getGrid(self):
         yStart = 5
@@ -108,12 +120,6 @@ class ConsolManager:
             y = yStart
         return y, x
         
-    def _updatePosition(self, n):
-        for i in range(len(self.grid)):
-            if len(self.coms) > i:
-                self.coms[i].moveTo(*self.grid[i])
-            else:
-                break
             
     def _getDrawAbleInOnePage(self): #ToDo: can make faster with mathic operation
         num = 1
@@ -134,6 +140,7 @@ class ConsolManager:
         com = Com(self.count)
         self.count += 1
         
+        self.state.updateCom(1)        
         #y, x = self._getNextLoction(*self.coms[-1].getyx()) if self.coms else (0, 0)
         #com.moveTo(y, x)
         self.coms.append(com)
@@ -158,11 +165,14 @@ class ConsolManager:
                 self.coms[i+self.page].moveTo(*self.grid[i])
                 self.coms[i+self.page].draw()
             else:
-                break
-            
+                self.emptyCom.mvwin(*self.grid[i])
+                self.emptyCom.clear()
+                self.emptyCom.refresh()
+                
     def pageTurn(self, n):
-        self.page += n*((self.maxx-1) // self.comsize[1])
-        self.page = min(self.page, len(self.coms)//(self.maxx // self.comsize[1]))
+        row = ((self.maxx-1) // self.comsize[1])
+        self.page += n*row
+        self.page = min(self.page, (len(self.coms)//row-1)*row)
         self.page = max(self.page, 0)
         
 
