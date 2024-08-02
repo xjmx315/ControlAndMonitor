@@ -12,6 +12,11 @@ class Com(jmtui.Box):
         self.todo = 21
         self.done = 0
         
+        self.selected = 0
+        
+    def __str__(self):
+        return self.title
+        
     def progrese(self):
         return self.done*100//self.todo
     
@@ -28,12 +33,22 @@ class Com(jmtui.Box):
     def draw(self):
         super().draw()
         self.setBoxcolor()
+        if self.selected:
+            self.window.bkgd(' ', curses.color_pair(6))
+        else:
+            self.window.bkgd(' ', curses.color_pair(4))
         self.window.move(0, 0)
         self.window.addstr(f"condition: {self.condition}\n")
         self.window.addstr(f"done/todo: {self.done}/{self.todo}\n")
         self.window.addstr(f"{self.done*100//self.todo}%\n", curses.A_REVERSE)
         
         self.window.refresh()
+        
+    def select(self):
+        self.selected = 1
+        
+    def unselect(self):
+        self.selected = 0
 
         
 class StateBox(jmtui.Box):
@@ -45,6 +60,7 @@ class StateBox(jmtui.Box):
         self.doneCom = 0
         self.totalCom = lambda: self.fineCom + self.errorCom + self.awaitCom + self.doneCom
         self.setTitleLoc("center")
+        self.logData = ''
         
     def drawComState(self, startX = 0):
         self.window.move(0, startX + 0)
@@ -62,16 +78,24 @@ class StateBox(jmtui.Box):
         self.window.move(startY, startX)
         self.window.addstr(f"{time.localtime()[3]}:{time.localtime()[4]}:{time.localtime()[5]}")
         
+    def drawLog(self, startX = 50):
+        self.window.move(1, startX)
+        self.window.addstr(self.logData)
+        
     def draw(self):
         super().draw()
         self.drawComState()
         self.drawTime()
+        self.drawLog()
         
     def updateCom(self, await_ = 0, fine = 0, done = 0, error = 0):
         self.awaitCom += await_
         self.fineCom += fine
         self.doneCom += done
         self.errorCom += error
+        
+    def log(self, data):
+        self.logData = data
         
 
 
@@ -82,6 +106,7 @@ class ConsolManager:
         self.coms = []
         self.page = 0
         self.comsize = (7, 20)
+        self.selectedCom = None
         
         self._updateMaxyx()
         self._getCenter = lambda whole, thing: (whole - thing)//2
@@ -147,21 +172,19 @@ class ConsolManager:
         
         #self._updatePages()
         
-    def delCom(self, n):# sucess -> 0 / not -> 1
-        for i in range(len(self.coms)):
-            if self.coms[i].num == n:
-                del self.coms[i]
-                self._updatePosition()
-                self._updatePages()
-                return 0
-        return 1
+    def delCom(self):
+        if self.selectedCom:
+            for i in range(len(self.coms)):
+                if self.coms[i] is self.selectedCom:
+                    del self.coms[i]
+                    break
         
     def do(self):
         #st = (self.page[0]-1)*self._getDrawAbleInOnePage()
         #en = min(len(self.coms)-st, self._getDrawAbleInOnePage()+st)
         self.state.draw()
         for i in range(len(self.grid)):
-            if len(self.coms) > i+self.page:
+            if len(self.coms) > i + self.page:
                 self.coms[i+self.page].moveTo(*self.grid[i])
                 self.coms[i+self.page].draw()
             else:
@@ -174,6 +197,37 @@ class ConsolManager:
         self.page += n*row
         self.page = min(self.page, (len(self.coms)//row-1)*row)
         self.page = max(self.page, 0)
+        
+    def log(self, data):
+        self.state.log(data)
+        
+    def _isInComArea(self, y, x, sty, stx):
+        if sty < y < self.comsize[0] + sty and stx < x < self.comsize[1] + stx:
+            return 1
+        return 0
+        
+    def _getIndexMouseClicked(self, y, x): #Todo: can make faster
+        for i in range(len(self.grid)):
+            if self._isInComArea(y, x, *self.grid[i]):
+                return i
+        return -1
+    
+    def _getComWithGridIndex(self, index):
+        if len(self.coms) > index + self.page:
+            return self.coms[index + self.page]
+        return None
+    
+    def mouse(self, y, x):
+        index = self._getIndexMouseClicked(y, x)
+        com = self._getComWithGridIndex(index) if index != -1 else None
+        self.selectCom(com)
+
+    def selectCom(self, com):
+        if self.selectedCom:
+            self.selectedCom.unselect()
+        self.selectedCom = com
+        if self.selectedCom:
+            self.selectedCom.select()
         
 
 class Manager:
@@ -200,14 +254,21 @@ class Manager:
         if command == ord('a'):
             self.consolMeneger.newCom()
             return 0
-        if command == ord('q'):
+        elif command == ord('q'):
             return -1
-        if command == ord('n'):
+        elif command == ord('n'):
             self.consolMeneger.pageTurn(1)
-        if command == ord('b'):
+        elif command == ord('b'):
             self.consolMeneger.pageTurn(-1)
+        elif command == curses.KEY_MOUSE:
+            self.mouseEvent(*curses.getmouse())
+        elif command == ord('d'):
+            self.consolMeneger.delCom()
             
-
+    def mouseEvent(self, id, x, y, z, data):
+        #self.consolMeneger.log(f"{id} {x} {y} {z} {data}")
+        self.consolMeneger.mouse(y, x)
+        
     def start(self):
         while 1:
             self.updateKey()
@@ -222,6 +283,7 @@ def setConsol():
     curses.noecho()
     stdscr.keypad(1)
     curses.curs_set(0)
+    curses.mousemask(1)
 
     curses.start_color()
     curses.use_default_colors()
@@ -229,6 +291,8 @@ def setConsol():
     curses.init_pair(2, curses.COLOR_GREEN, -1)
     curses.init_pair(3, curses.COLOR_BLUE, -1)
     curses.init_pair(4, curses.COLOR_WHITE, -1)
+    curses.init_pair(5, curses.COLOR_BLACK, -1)
+    curses.init_pair(6, curses.COLOR_WHITE, curses.COLOR_YELLOW)
     
 def unsetConsol(log = 'No Logs'):
     curses.nocbreak()
