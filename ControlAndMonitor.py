@@ -42,7 +42,7 @@ class Com(jmtui.Box):
         self.window.addstr(f"done/todo: {self.done}/{self.todo}\n")
         self.window.addstr(f"{self.done*100//self.todo}%\n", curses.A_REVERSE)
         
-        self.window.refresh()
+        self.refresh()
         
     def select(self):
         self.selected = 1
@@ -87,6 +87,7 @@ class StateBox(jmtui.Box):
         self.drawComState()
         self.drawTime()
         self.drawLog()
+        self.refresh()
         
     def updateCom(self, await_ = 0, fine = 0, done = 0, error = 0):
         self.awaitCom += await_
@@ -191,6 +192,7 @@ class ConsolManager:
                 self.emptyCom.mvwin(*self.grid[i])
                 self.emptyCom.clear()
                 self.emptyCom.refresh()
+        #self.window.refresh()
                 
     def pageTurn(self, n):
         row = ((self.maxx-1) // self.comsize[1])
@@ -270,12 +272,17 @@ class Manager:
         self.consolMeneger.mouse(y, x)
         
     def start(self):
+        self.consolMeneger.do()
+        time.sleep(1)
         while 1:
             self.updateKey()
-            for com in self.keyInputs:
-                if self.doCommand(com) == -1:
+            for command in self.keyInputs:
+                if self.doCommand(command) == -1:
                     return self.logs
-            self.consolMeneger.do()
+            if self.keyInputs:
+                self.consolMeneger.do()
+            else: 
+                time.sleep(0.1)
         
 
 def setConsol():

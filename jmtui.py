@@ -29,6 +29,9 @@ class Box:
             self.box.addstr(0, (self.size_x-len(self.title))//2, self.title)
         else:
             self.box.addstr(0, 2, self.title)
+        #self.box.refresh()
+
+    def refresh(self):
         self.box.refresh()
         
     def moveTo(self, newy, newx):
