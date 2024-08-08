@@ -242,7 +242,7 @@ class Manager:
         self.logs.append(self.consolMeneger.grid)
         
     def _getKeyInputs(self):
-        key = self.stdscr.getch()
+        key = self.stdscr.getch() #this code clean stdscr for farst run. 
         while key != -1:
             self.keyInputs.append(key)
             key = self.stdscr.getch()
@@ -272,8 +272,8 @@ class Manager:
         self.consolMeneger.mouse(y, x)
         
     def start(self):
+        self.updateKey()
         self.consolMeneger.do()
-        time.sleep(1)
         while 1:
             self.updateKey()
             for command in self.keyInputs:
