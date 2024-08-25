@@ -4,7 +4,34 @@ import random
 import time
 import jmtui
 
+from urllib import request
+import json
+
+class HTTPManager:
+    def __init__(self, num = 0):
+        self.num = num
+        self.url = ''
+        self.port = ''
+
+    def setURL(self, url):
+        self.url = url
+
+    def getData(self, url = None):
+        if not url:
+            url = self.url
+        try:
+            response = request.urlopen(url)
+        except:
+            return -1
+        return response.read().decode()
+
+    def getURL():
+        return 'http://localhost:8080/'
+
+
 class Com(jmtui.Box):
+    httpManager = HTTPManager()
+
     def __init__(self, num = 0):
         self.num = num
         super().__init__(f"Com {num}")
@@ -13,6 +40,9 @@ class Com(jmtui.Box):
         self.done = 0
         
         self.selected = 0
+
+        self.server = Com.httpManager
+        self.url = ''
         
     def __str__(self):
         return self.title
@@ -23,7 +53,7 @@ class Com(jmtui.Box):
     def setBoxcolor(self):
         if self.condition == "Done":
             super().setBoxcolor(3)
-        elif self.condition == "Fine":
+        elif self.condition == "Working":
             super().setBoxcolor(2)
         elif self.condition == "Erorr":
             super().setBoxcolor(1)
@@ -31,6 +61,8 @@ class Com(jmtui.Box):
             super().setBoxcolor(4)
                 
     def draw(self):
+        self.updateData()
+        
         super().draw()
         self.setBoxcolor()
         if self.selected:
@@ -49,6 +81,19 @@ class Com(jmtui.Box):
         
     def unselect(self):
         self.selected = 0
+
+    def updateData(self):
+        data = self.server.getData(self.url)
+        if data == -1:
+            self.condition = "Error: 500" #server connection failled
+            return 0
+        data = json.loads(data)
+        self.todo = data["total_substances"]
+        self.done = data["processed_substances"]
+        self.condition = data["crawl_state"].capitalize()
+        #if data["crawl_state"] == 'working':
+        #    self.condition = "Working"
+
 
         
 class StateBox(jmtui.Box):
@@ -164,6 +209,8 @@ class ConsolManager:
 
     def newCom(self): #To do
         com = Com(self.count)
+        #TODO: give url when com made
+        com.url = HTTPManager.getURL()
         self.count += 1
         
         self.state.updateCom(1)        
@@ -172,6 +219,8 @@ class ConsolManager:
         self.coms.append(com)
         
         #self._updatePages()
+
+        
         
     def delCom(self):
         if self.selectedCom:
